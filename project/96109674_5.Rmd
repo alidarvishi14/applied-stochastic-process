@@ -1,0 +1,187 @@
+---
+title: "Project"
+author: "Alireza Darvishi"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Initial functions and load packages
+```{r loading data and packages, message=FALSE, warning=TRUE}
+library(ggplot2)
+
+setInitialValues = function (T=365,mu=0.01,P_r=0.3) {
+  assign("T", T , envir = .GlobalEnv)
+  assign("mu", mu , envir = .GlobalEnv)
+  assign("P_r", P_r , envir = .GlobalEnv)
+  assign("t", 0 , envir = .GlobalEnv)
+  assign("state", c ("s" , rep("h",N-1)) , envir = .GlobalEnv)
+  assign("timer", c(tr(),rep(0,N-1)) , envir = .GlobalEnv)
+  assign("t_s", 0 , envir = .GlobalEnv)
+  assign("data",
+         matrix(c(0,sum(state=="h"),sum(state=="s"),
+                  sum(state=="r" | state=="u"),sum(state=="d")),nrow = 1,ncol =5),envir = .GlobalEnv)
+}
+plotNIBS = function(dataframe){
+  ggplot(dataframe,aes(x=t))+
+    geom_line(aes(y=n_h,colour="healthy"))+
+    geom_line(aes(y=n_s,colour='sick'))+
+    geom_line(aes(y=n_r,colour="revived"))+
+    geom_line(aes(y=n_d,colour="dead"))+
+    labs(y = "number of peaple" , title = "NIBS" , colour = "state")
+}
+f = function(d){
+  c = 1
+  return(as.numeric(d<c))
+}
+
+d = function(x,y,i,j,breaks){
+  if( (sum(x[i]>cumsum(breaks))==sum(x[j]>cumsum(breaks))) & (sum(y[i]>cumsum(breaks))==sum(y[j]>cumsum(breaks))) ){
+    return(sqrt( ( x[i] - x[j] )^2 + ( y[i] - y[j] )^2 ) )
+  }else{
+    return(Inf)
+  }
+}
+tr = function(){
+  a_r = 10
+  b_r = 20
+  return(runif(n = 1,min = a_r,max = b_r))
+}
+tu = function(){
+  return(10)
+}
+tg = function(){
+  a_r = 0.1
+  b_r = 0.5
+  return(runif(n = 1,min = a_r,max = b_r))
+}
+N = 10^3
+n_h = 14
+l = 10
+breaks_t = (0:n_h)/n_h*l
+x_t = runif(N,min = 0,max = l)
+y_t = runif(N,min = 0,max = l)
+f_mat = matrix(rep(0,N^2), nrow = N, ncol = N)
+for(i in 1:(N-1)){
+  for(j in (i+1):N){
+    f_mat[i,j] = f( d(x_t,y_t,i,j,breaks_t) )
+    f_mat[j,i] = f_mat[i,j]
+  }
+}
+l_cs = 2
+x1 = runif(N,min = 0,max = l_cs)
+y1 = runif(N,min = 0,max = l_cs)
+f_cs = matrix(rep(0,N^2), nrow = N, ncol = N)
+breaks_cs = c(0,1)*l_cs
+for(i in 1:(N-1)){
+  for(j in (i+1):N){
+    f_cs[i,j] = f( d(x1,y1,i,j,breaks_cs) )
+    f_cs[j,i] = f_cs[i,j]
+  }
+}
+```
+
+# 5
+```{r 5}
+setInitialValues(mu = 0.01)
+mu_g = 0.5
+n_g = 1
+place = rep(0,N)
+place_timer = rep(0,N)
+rate = function(section){
+  if(section=="a"){
+    s0 = (f_mat%*%( ( state=="s" | state=="u" ) & place==0 ) )*( ( state=="h" | state=="r" ) & place==0 )
+    for (i in 1:n_g){
+      s0 = s0 + (f_cs%*%( ( state=="s" | state=="u" ) & place==i ) )*( ( state=="h" | state=="r" ) & place==i )
+    }
+    return(s0)
+  }
+  if(section=="b"){
+    s0 = (f_mat%*%( ( state=="s" ) & place==0 ) )*( ( state=="h" | state=="r" ) & place==0 )
+    for (i in 1:n_g){
+      s0 = s0 + (f_cs%*%( ( state=="s" ) & place==i ) )*( ( state=="h" | state=="r" ) & place==i )
+    } 
+    return(s0)
+  }
+}
+t_s = rexp(1,mu*sum(rate("b")))
+t_g = rexp(1,mu_g*sum(place==0 & state!="d"))
+while(t<T){
+  rate_now = sum(rate("b"))
+  collect_data = TRUE
+  #print(paste("rate_now",rate_now))
+  if( t_s < min ( Inf , timer[ state=="s" ] ) &
+      t_s < min ( Inf , timer[ state=="u" ] ) &
+      t_s < t_g ){
+    t = t_s
+    i = sum( runif(1)* rate_now > cumsum( rate("b") ) ) + 1
+    state[i] = "s"
+    timer[i] = t+tr()
+    if( rate_now > 0 ){
+      t_s = t + rexp(1,mu* rate_now )
+    }else{
+      #print("no one is going to be sick")
+      t_s = Inf
+    }
+    #print(paste("new sick: ", i ))
+  }else if( min ( Inf , timer[ state=="s" ] ) < t_s &
+            min ( Inf , timer[ state=="s" ] ) < min ( Inf , timer[ state=="u" ] ) &
+            min ( Inf , timer[ state=="s" ] ) < t_g ){
+    t = min ( Inf , timer[ state=="s" ] )
+    i = which(timer==t)
+    timer[i] = 0
+    if(runif(1)<P_r){
+      #print("new dead")
+      state[i] = "d"
+    }else{
+      #print("new revived")
+      if( rate_now > 0 ){
+        t_s = t + rexp(1,mu * rate_now )
+      }
+      state[i] = "u"
+      timer[i] = t + tu()
+    }
+  }else if( min ( Inf , timer[ state=="u" ] ) < t_s &
+            min ( Inf , timer[ state=="u" ] ) < min ( Inf , timer[ state=="s" ] ) &
+            min ( Inf , timer[ state=="u" ] ) < t_g ){
+    t = min ( Inf , timer[ state=="u" ] )
+    i = which(timer==t)
+    state[i] = "r"
+    timer[i] = 0
+    #print("remove one u")
+  }else if( t_g < min ( Inf , timer[ state=="s" ] ) &
+            t_g < min ( Inf , timer[ state=="u" ] ) &
+            t_g < t_s){
+    collect_data = FALSE
+    t = t_g
+    if( sum(place==0 & state!="d") > 0 ){
+      t_g = t + rexp(1,mu_g*sum(place==0 & state!="d"))
+    }else{
+      t_g = Inf
+    }
+    i = sum( runif(1)* sum(place==0 & state!="d") > cumsum( place==0 & state!="d") ) + 1
+    place[i] = ceiling(runif(1)*n_g)
+    place_timer[i] = t + tg()
+    #print(paste(i," went to mall"))
+  }else{
+    print("all people are dead or cured or no one is going to be sick anymore")
+    break
+  }
+  if(sum(state=="s" | sum(state=="u"))==0){
+    print("no one in sick anymore")
+    break()
+  }
+  place[place_timer<t] = 0
+  place_timer[place_timer<t] = 0
+  if(collect_data){
+    data = rbind(data,c(t,sum(state=="h"),sum(state=="s"),sum(state=="r" | state=="u"),sum(state=="d"))) 
+  }
+}
+dataframe = data.frame(data)
+colnames(dataframe) = c("t","n_h","n_s","n_r","n_d")
+plotNIBS(dataframe)
+map = data.frame(x=x_t,y=y_t,state=state)
+ggplot(map,aes(x=x,y=y,color = state))+geom_point()
+```
+

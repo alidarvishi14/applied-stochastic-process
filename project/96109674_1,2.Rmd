@@ -1,0 +1,360 @@
+---
+title: "Project"
+author: "Alireza Darvishi"
+date: "`r Sys.time()`"
+output:
+  html_document:
+    df_print: paged
+---
+
+# Initial functions and load packages
+```{r loading data and packages, message=FALSE, warning=TRUE}
+library(ggplot2)
+
+setInitialValues = function (T=365,mu=0.01,P_r=0.3) {
+  assign("T", T , envir = .GlobalEnv)
+  assign("mu", mu , envir = .GlobalEnv)
+  assign("P_r", P_r , envir = .GlobalEnv)
+  assign("N", 10^4 , envir = .GlobalEnv)
+  assign("n_s", 0 , envir = .GlobalEnv)
+  assign("n_h", N-n_s , envir = .GlobalEnv)
+  assign("n_r", 0 , envir = .GlobalEnv)
+  assign("n_u", 0 , envir = .GlobalEnv)
+  assign("n_d", 0 , envir = .GlobalEnv)
+  assign("t_u", c() , envir = .GlobalEnv)
+  assign("t_r", c() , envir = .GlobalEnv)
+  assign("t_s", 0 , envir = .GlobalEnv)
+  assign("t", 0 , envir = .GlobalEnv)
+  assign("data",matrix(c(t,n_h,n_s,n_r,n_d),nrow = 1,ncol = 5),envir = .GlobalEnv)
+}
+plotNIBS = function(dataframe){
+  ggplot(dataframe,aes(x=t))+
+    geom_line(aes(y=n_h,colour="healthy"))+
+    geom_line(aes(y=n_s,colour='sick'))+
+    geom_line(aes(y=n_r,colour="revived"))+
+    geom_line(aes(y=n_d,colour="dead"))+
+    labs(y = "number of peaple" , title = "NIBS" , colour = "state")
+}
+tr = function(){
+  a_r = 10
+  b_r = 20
+  return(runif(n = 1,min = a_r,max = b_r))
+}
+tu = function(){
+  return(runif(1,5,10))
+}
+```
+
+# 1
+## a
+```{r 1.a}
+setInitialValues()
+while (t<T) {
+  if(t_s < min(Inf,t_r) & t_s< min(Inf,t_u)){
+    t = t_s
+    n_s = n_s + 1
+    t_r = append(t_r,t+tr())
+    n_h = n_h - 1
+    if(n_h>0){
+      t_s = t + rexp(1,n_h*mu)
+    }else{
+      t_s = Inf
+    }
+    #print("new sick")
+  }else if(min(Inf , t_r) < t_s & min(Inf , t_r) < min(Inf , t_u)){
+    t = min(Inf , t_r)
+    n_s = n_s - 1
+    t_r = t_r[t_r!=t]
+    if(runif(1)<P_r){
+      #print("new dead")
+      n_d = n_d + 1
+    }else{
+      #print("new revived")
+      n_r = n_r + 1
+      n_u = n_u + 1
+      t_u = append(t_u,t+tu())
+    }
+  }else if(min(Inf , t_u) < t_s & min(Inf , t_u) < min(Inf , t_r)){
+    t = min(Inf , t_u)
+    t_u = t_u[t_u!=t]
+    n_u = n_u - 1 
+    #print("remove one u")
+  }else{
+    print("all people are dead or cured")
+    break
+  }
+  if(n_h<0 | n_s<0 | n_r<0 | n_u<0){
+    print("bug")
+    break
+  }
+  data = rbind(data,c(t,n_h,n_s,n_r,n_d))
+}
+dataframe = data.frame(data)
+colnames(dataframe) = c("t","n_h","n_s","n_r","n_d")
+plotNIBS(dataframe)
+```
+
+## b
+```{r 1.b}
+setInitialValues()
+while (t<T) {
+  if(t_s < min(Inf,t_r) & t_s< min(Inf,t_u)){
+    t = t_s
+    n_s = n_s + 1
+    t_r = append(t_r,t+tr())
+    if(runif(1)<n_h/(n_h+n_r)){
+      n_h = n_h - 1
+    }else{
+      n_r = n_r - 1
+    }
+    if(n_h+n_r>0){
+      t_s = t + rexp(1,(n_h+n_r)*mu)
+    }else{
+      t_s = Inf
+    }
+    #print("new sick")
+  }else if(min(Inf , t_r) < t_s & min(Inf , t_r) < min(Inf , t_u)){
+    t = min(Inf , t_r)
+    n_s = n_s - 1
+    t_r = t_r[t_r!=t]
+    if(runif(1)<P_r){
+      #print("new dead")
+      n_d = n_d + 1
+    }else{
+      #print("new revived")
+      n_r = n_r + 1
+      if(n_r+n_h==1){
+        t_s = t + rexp(1,(n_h+n_r)*mu)
+      }
+      n_u = n_u + 1
+      t_u = append(t_u,t+tu())
+    }
+  }else if(min(Inf , t_u) < t_s & min(Inf , t_u) < min(Inf , t_r)){
+    t = min(Inf , t_u)
+    t_u = t_u[t_u!=t]
+    n_u = n_u - 1 
+    #print("remove one u")
+  }else{
+    print("all people are dead or cured")
+    break
+  }
+  if(n_h<0 | n_s<0 | n_r<0 | n_u<0){
+    print("bug")
+    break
+  }
+  data = rbind(data,c(t,n_h,n_s,n_r,n_d))
+}
+dataframe = data.frame(data)
+colnames(dataframe) = c("t","n_h","n_s","n_r","n_d")
+plotNIBS(dataframe)
+```
+
+# 2
+## a
+### a
+```{r 2.a.a}
+setInitialValues(mu = 0.00001)
+while (t<T) {
+  if(t_s < min(Inf,t_r) & t_s< min(Inf,t_u)){
+    t = t_s
+    n_s = n_s + 1
+    t_r = append(t_r,t+tr())
+    n_h = n_h - 1
+    if(n_h>0){
+      t_s = t + rexp(1,n_h*n_s*mu)
+    }else{
+      t_s = Inf
+    }
+    #print("new sick")
+  }else if(min(Inf , t_r) < t_s & min(Inf , t_r) < min(Inf , t_u)){
+    t = min(Inf , t_r)
+    n_s = n_s - 1
+    t_r = t_r[t_r!=t]
+    if(runif(1)<P_r){
+      #print("new dead")
+      n_d = n_d + 1
+    }else{
+      #print("new revived")
+      n_r = n_r + 1
+      n_u = n_u + 1
+      t_u = append(t_u,t+tu())
+    }
+  }else if(min(Inf , t_u) < t_s & min(Inf , t_u) < min(Inf , t_r)){
+    t = min(Inf , t_u)
+    t_u = t_u[t_u!=t]
+    n_u = n_u - 1 
+    #print("remove one u")
+  }else{
+    print("all people are dead or cured")
+    break
+  }
+  if(n_h<0 | n_s<0 | n_r<0 | n_u<0){
+    print("bug")
+    break
+  }
+  data = rbind(data,c(t,n_h,n_s,n_r,n_d))
+}
+dataframe = data.frame(data)
+colnames(dataframe) = c("t","n_h","n_s","n_r","n_d")
+plotNIBS(dataframe)
+```
+
+### b
+```{r 2.a.b}
+setInitialValues(mu = 0.00001)
+while (t<T) {
+  if(t_s < min(Inf,t_r) & t_s< min(Inf,t_u)){
+    t = t_s
+    n_s = n_s + 1
+    t_r = append(t_r,t+tr())
+    if(runif(1)<n_h/(n_h+n_r)){
+      n_h = n_h - 1
+    }else{
+      n_r = n_r - 1
+    }
+    if(n_h+n_r>0){
+      t_s = t + rexp(1,(n_h+n_r)*n_s*mu)
+    }else{
+      t_s = Inf
+    }
+    #print("new sick")
+  }else if(min(Inf , t_r) < t_s & min(Inf , t_r) < min(Inf , t_u)){
+    t = min(Inf , t_r)
+    n_s = n_s - 1
+    t_r = t_r[t_r!=t]
+    if(runif(1)<P_r){
+      #print("new dead")
+      n_d = n_d + 1
+    }else{
+      #print("new revived")
+      n_r = n_r + 1
+      if(n_r+n_h==1){
+        t_s = t + rexp(1,(n_h+n_r)*n_s*mu)
+      }
+      n_u = n_u + 1
+      t_u = append(t_u,t+tu())
+    }
+  }else if(min(Inf , t_u) < t_s & min(Inf , t_u) < min(Inf , t_r)){
+    t = min(Inf , t_u)
+    t_u = t_u[t_u!=t]
+    n_u = n_u - 1 
+    #print("remove one u")
+  }else{
+    print("all people are dead or cured")
+    break
+  }
+  if(n_h<0 | n_s<0 | n_r<0 | n_u<0){
+    print("bug")
+    break
+  }
+  data = rbind(data,c(t,n_h,n_s,n_r,n_d))
+}
+dataframe = data.frame(data)
+colnames(dataframe) = c("t","n_h","n_s","n_r","n_d")
+plotNIBS(dataframe)
+```
+
+## b
+### a
+```{r 2.b.a}
+setInitialValues(mu = 0.00001)
+while (t<T) {
+  if(t_s < min(Inf,t_r) & t_s< min(Inf,t_u)){
+    t = t_s
+    n_s = n_s + 1
+    t_r = append(t_r,t+tr())
+    n_h = n_h - 1
+    if(n_h>0){
+      t_s = t + rexp(1,n_h*(n_s+n_u)*mu)
+    }else{
+      t_s = Inf
+    }
+    #print("new sick")
+  }else if(min(Inf , t_r) < t_s & min(Inf , t_r) < min(Inf , t_u)){
+    t = min(Inf , t_r)
+    n_s = n_s - 1
+    t_r = t_r[t_r!=t]
+    if(runif(1)<P_r){
+      #print("new dead")
+      n_d = n_d + 1
+    }else{
+      #print("new revived")
+      n_r = n_r + 1
+      n_u = n_u + 1
+      t_u = append(t_u,t+tu())
+    }
+  }else if(min(Inf , t_u) < t_s & min(Inf , t_u) < min(Inf , t_r)){
+    t = min(Inf , t_u)
+    t_u = t_u[t_u!=t]
+    n_u = n_u - 1 
+    #print("remove one u")
+  }else{
+    print("all people are dead or cured")
+    break
+  }
+  if(n_h<0 | n_s<0 | n_r<0 | n_u<0){
+    print("bug")
+    break
+  }
+  data = rbind(data,c(t,n_h,n_s,n_r,n_d))
+}
+dataframe = data.frame(data)
+colnames(dataframe) = c("t","n_h","n_s","n_r","n_d")
+plotNIBS(dataframe)
+```
+
+### b
+```{r 2.b.b}
+setInitialValues(mu = 0.00001)
+while (t<T) {
+  if(t_s < min(Inf,t_r) & t_s< min(Inf,t_u)){
+    t = t_s
+    n_s = n_s + 1
+    t_r = append(t_r,t+tr())
+    if(runif(1)<n_h/(n_h+n_r)){
+      n_h = n_h - 1
+    }else{
+      n_r = n_r - 1
+    }
+    if(n_h+n_r>0){
+      t_s = t + rexp(1,(n_h+n_r)*(n_s+n_u)*mu)
+    }else{
+      t_s = Inf
+    }
+    #print("new sick")
+  }else if(min(Inf , t_r) < t_s & min(Inf , t_r) < min(Inf , t_u)){
+    t = min(Inf , t_r)
+    n_s = n_s - 1
+    t_r = t_r[t_r!=t]
+    if(runif(1)<P_r){
+      #print("new dead")
+      n_d = n_d + 1
+    }else{
+      #print("new revived")
+      n_r = n_r + 1
+      if(n_r+n_h==1){
+        t_s = t + rexp(1,(n_h+n_r)*(n_s+n_u)*mu)
+      }
+      n_u = n_u + 1
+      t_u = append(t_u,t+tu())
+    }
+  }else if(min(Inf , t_u) < t_s & min(Inf , t_u) < min(Inf , t_r)){
+    t = min(Inf , t_u)
+    t_u = t_u[t_u!=t]
+    n_u = n_u - 1 
+    #print("remove one u")
+  }else{
+    print("all people are dead or cured")
+    break
+  }
+  if(n_h<0 | n_s<0 | n_r<0 | n_u<0){
+    print("bug")
+    break
+  }
+  data = rbind(data,c(t,n_h,n_s,n_r,n_d))
+}
+dataframe = data.frame(data)
+colnames(dataframe) = c("t","n_h","n_s","n_r","n_d")
+plotNIBS(dataframe)
+```
+
